@@ -138,6 +138,9 @@ class PTBModel(object):
 
     output, state = self._build_rnn_graph(inputs, config, is_training) # build the rnn layers, output is the o, state is the s
 
+    self._output = output
+    print(1)
+    print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
     # The following is to calculate the loss and use the loss to calculate the gradient and update the parameters
     softmax_w = tf.get_variable(
         "softmax_w", [size, vocab_size], dtype=data_type())
@@ -156,31 +159,31 @@ class PTBModel(object):
         average_across_batch=True)
 
     # Update the cost
-    self._cost = tf.reduce_sum(loss)                                # the cost is the another type of loss, you can regard it as the loss
+    self._cost = tf.reduce_sum(loss)
     self._final_state = state
 
     if not is_training:
       return
 
-    self._lr = tf.Variable(0.0, trainable=False)                       # This is learning rate
-    tvars = tf.trainable_variables()                                   # get the variable we need traning   U, V, W in that article
-    grads, _ = tf.clip_by_global_norm(tf.gradients(self._cost, tvars), # calculate the gradients
+    self._lr = tf.Variable(0.0, trainable=False)  # This is learning rate
+    tvars = tf.trainable_variables()
+    grads, _ = tf.clip_by_global_norm(tf.gradients(self._cost, tvars),
                                       config.max_grad_norm)
-    optimizer = tf.train.GradientDescentOptimizer(self._lr)            # use the calculated gradient to update the training variables
+    optimizer = tf.train.GradientDescentOptimizer(self._lr)
     self._train_op = optimizer.apply_gradients(
         zip(grads, tvars),
         global_step=tf.train.get_or_create_global_step())
 
-    self._new_lr = tf.placeholder(                                     # if the learning rate is not proper, we need update it.
+    self._new_lr = tf.placeholder(
         tf.float32, shape=[], name="new_learning_rate")
     self._lr_update = tf.assign(self._lr, self._new_lr)
 
-  def _build_rnn_graph(self, inputs, config, is_training):              # this is the function to create the rnn graph
+  def _build_rnn_graph(self, inputs, config, is_training):
     if config.rnn_mode == CUDNN:
       return self._build_rnn_graph_cudnn(inputs, config, is_training)
     else:
-      return self._build_rnn_graph_lstm(inputs, config, is_training)    # We only care about this lstm
-  # Skip this cudnn, we don't use it this time
+      return self._build_rnn_graph_lstm(inputs, config, is_training)
+
   def _build_rnn_graph_cudnn(self, inputs, config, is_training):
     """Build the inference graph using CUDNN cell."""
     inputs = tf.transpose(inputs, [1, 0, 2])
@@ -201,11 +204,11 @@ class PTBModel(object):
                  tf.float32)
     self._initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
     outputs, h, c = self._cell(inputs, h, c, self._rnn_params, is_training)
+    self._output = outputs
     outputs = tf.transpose(outputs, [1, 0, 2])
     outputs = tf.reshape(outputs, [-1, config.hidden_size])
     return outputs, (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
-  # create the single lstm cell
-  # all the creating work is done by the tensorflow, we don't need implement it very detail
+
   def _get_lstm_cell(self, config, is_training):
     if config.rnn_mode == BASIC:
       return tf.contrib.rnn.BasicLSTMCell(
@@ -216,13 +219,12 @@ class PTBModel(object):
           config.hidden_size, forget_bias=0.0)
     raise ValueError("rnn_mode %s not supported" % config.rnn_mode)
 
-  # create the lstm graph, may use multiple lstm cells
   def _build_rnn_graph_lstm(self, inputs, config, is_training):
     """Build the inference graph using canonical LSTM cells."""
     # Slightly better results can be obtained with forget gate biases
     # initialized to 1 but the hyperparameters of the model would need to be
     # different than reported in the paper.
-    def make_cell():    # just call  the above function to create a single cell
+    def make_cell():
       cell = self._get_lstm_cell(config, is_training)
       if is_training and config.keep_prob < 1:
         cell = tf.contrib.rnn.DropoutWrapper(
@@ -230,9 +232,9 @@ class PTBModel(object):
       return cell
 
     cell = tf.contrib.rnn.MultiRNNCell(
-        [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)  # connect multiple cells, we don't need how to connect them, tensorflow helps us connect all the layers automatically.
+        [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
-    self._initial_state = cell.zero_state(config.batch_size, data_type()) # set initial state to all zeroes
+    self._initial_state = cell.zero_state(config.batch_size, data_type())
     state = self._initial_state
     # Simplified version of tf.nn.static_rnn().
     # This builds an unrolled LSTM for tutorial purposes only.
@@ -246,17 +248,19 @@ class PTBModel(object):
     outputs = []
     '''
 	this is the calculating process
-        You can regard this process as a forward proporgation
     '''
     with tf.variable_scope("RNN"):
       for time_step in range(self.num_steps):
         if time_step > 0: tf.get_variable_scope().reuse_variables()
         (cell_output, state) = cell(inputs[:, time_step, :], state)
         outputs.append(cell_output)
+    print("<<<<<<<<<<<<<<<<<<<<<<<")
+    print(outputs)
+    print("<<<<<<<<<<<<<<<<<<<<<<<")
     output = tf.reshape(tf.concat(outputs, 1), [-1, config.hidden_size])
     return output, state
 
-  def assign_lr(self, session, lr_value):                            # using this function you can assign learning rate
+  def assign_lr(self, session, lr_value):
     session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
 
   def export_ops(self, name):
@@ -296,7 +300,7 @@ class PTBModel(object):
         self._initial_state, self._initial_state_name, num_replicas)
     self._final_state = util.import_state_tuples(
         self._final_state, self._final_state_name, num_replicas)
-  '''All the  properties are the accessor of the class fields'''
+
   @property
   def input(self):
     return self._input
@@ -304,6 +308,10 @@ class PTBModel(object):
   @property
   def initial_state(self):
     return self._initial_state
+
+  @property
+  def output(self):
+      return self._output
 
   @property
   def cost(self):
@@ -329,20 +337,20 @@ class PTBModel(object):
   def final_state_name(self):
     return self._final_state_name
 
-'''the followingas are the different confiuration'''
+
 class SmallConfig(object):
   """Small config."""
   init_scale = 0.1
   learning_rate = 1.0
   max_grad_norm = 5
   num_layers = 2
-  num_steps = 20
+  num_steps = 10
   hidden_size = 200
   max_epoch = 4
   max_max_epoch = 13
   keep_prob = 1.0
   lr_decay = 0.5
-  batch_size = 20
+  batch_size = 1
   vocab_size = 10000
   rnn_mode = BLOCK
 
@@ -400,7 +408,7 @@ class TestConfig(object):
 
 def run_epoch(session, model, eval_op=None, verbose=False):
   """Runs the model on the given data."""
-  start_time = time.time()   # this is the start time of we training the data, actually it is useless, just for print out
+  start_time = time.time()
   costs = 0.0
   iters = 0
   state = session.run(model.initial_state)
@@ -409,10 +417,9 @@ def run_epoch(session, model, eval_op=None, verbose=False):
       "cost": model.cost,
       "final_state": model.final_state,
   }
-
   if eval_op is not None:
     fetches["eval_op"] = eval_op
-  # start the train the model. For one step in the epoch, we run all the sentences one time.
+
   for step in range(model.input.epoch_size):
     feed_dict = {}
     for i, (c, h) in enumerate(model.initial_state):
@@ -420,21 +427,24 @@ def run_epoch(session, model, eval_op=None, verbose=False):
       feed_dict[h] = state[i].h
 
     vals = session.run(fetches, feed_dict)
+    #with tf.Session() as sess:
+    #   print(sess.run(model.output))
+    #print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
     cost = vals["cost"]
     state = vals["final_state"]
-
+    #print(state)
     costs += cost
     iters += model.input.num_steps
 
-    if verbose and step % (model.input.epoch_size // 10) == 10:
-      print("%.3f perplexity: %.3f speed: %.0f wps" %
+    #if verbose and step % (model.input.epoch_size // 10) == 10:
+    print("%.3f perplexity: %.3f speed: %.0f wps" %
             (step * 1.0 / model.input.epoch_size, np.exp(costs / iters),
              iters * model.input.batch_size * max(1, FLAGS.num_gpus) /
              (time.time() - start_time)))
 
   return np.exp(costs / iters)
 
-# get the configuration
+
 def get_config():
   """Get model config."""
   config = None
@@ -458,7 +468,6 @@ def get_config():
 def main(_):
   if not FLAGS.data_path:
     raise ValueError("Must set --data_path to PTB data directory")
-  # which machines we the program running on
   gpus = [
       x.name for x in device_lib.list_local_devices() if x.device_type == "GPU"
   ]
@@ -468,25 +477,20 @@ def main(_):
         "which is less than the requested --num_gpus=%d."
         % (len(gpus), FLAGS.num_gpus))
 
-  # get data from the data file
   raw_data = reader.ptb_raw_data(FLAGS.data_path)
   train_data, valid_data, test_data, _ = raw_data
 
-  # set config
   config = get_config()
   eval_config = get_config()
   eval_config.batch_size = 1
   eval_config.num_steps = 1
-
 
   with tf.Graph().as_default():
     initializer = tf.random_uniform_initializer(-config.init_scale,
                                                 config.init_scale)
 
     with tf.name_scope("Train"):
-      # transfer the input data into the PTBInput data
       train_input = PTBInput(config=config, data=train_data, name="TrainInput")
-      # create the training model
       with tf.variable_scope("Model", reuse=None, initializer=initializer):
         m = PTBModel(is_training=True, config=config, input_=train_input)
       tf.summary.scalar("Training Loss", m.cost)
