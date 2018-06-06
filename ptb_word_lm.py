@@ -148,7 +148,6 @@ class PTBModel(object):
     logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
      # Reshape logits to be a 3-D tensor for sequence loss
     logits = tf.reshape(logits, [self.batch_size, self.num_steps, vocab_size])
-
     # Use the contrib sequence loss and average over the batches
     # this is the loss. Do you remember why we need the loss? we need loss to calculate the gradient.
     loss = tf.contrib.seq2seq.sequence_loss(
@@ -161,6 +160,8 @@ class PTBModel(object):
     # Update the cost
     self._cost = tf.reduce_sum(loss)
     self._final_state = state
+    self._probabilities = tf.nn.softmax(logits)
+    self._logits = logits
 
     if not is_training:
       return
@@ -254,9 +255,9 @@ class PTBModel(object):
         if time_step > 0: tf.get_variable_scope().reuse_variables()
         (cell_output, state) = cell(inputs[:, time_step, :], state)
         outputs.append(cell_output)
-    print("<<<<<<<<<<<<<<<<<<<<<<<")
-    print(outputs)
-    print("<<<<<<<<<<<<<<<<<<<<<<<")
+    #print("<<<<<<<<<<<<<<<<<<<<<<<")
+    #print(outputs)
+    #print("<<<<<<<<<<<<<<<<<<<<<<<")
     output = tf.reshape(tf.concat(outputs, 1), [-1, config.hidden_size])
     return output, state
 
@@ -266,7 +267,7 @@ class PTBModel(object):
   def export_ops(self, name):
     """Exports ops to collections."""
     self._name = name
-    ops = {util.with_prefix(self._name, "cost"): self._cost}
+    ops = {util.with_prefix(self._name, "cost"): self._cost, util.with_prefix(self._name, "probabilities"): self._probabilities}
     if self._is_training:
       ops.update(lr=self._lr, new_lr=self._new_lr, lr_update=self._lr_update)
       if self._rnn_params:
@@ -295,6 +296,7 @@ class PTBModel(object):
             base_variable_scope="Model/RNN")
         tf.add_to_collection(tf.GraphKeys.SAVEABLE_OBJECTS, params_saveable)
     self._cost = tf.get_collection_ref(util.with_prefix(self._name, "cost"))[0]
+    self._probabilities = tf.get_collection_ref(util.with_prefix(self._name, "probabilities"))[0]
     num_replicas = FLAGS.num_gpus if self._name == "Train" else 1
     self._initial_state = util.import_state_tuples(
         self._initial_state, self._initial_state_name, num_replicas)
@@ -322,6 +324,14 @@ class PTBModel(object):
     return self._final_state
 
   @property
+  def probabilities(self):
+      return self._probabilities
+
+  @property
+  def logits(self):
+      return self._logits
+
+  @property
   def lr(self):
     return self._lr
 
@@ -344,14 +354,14 @@ class SmallConfig(object):
   learning_rate = 1.0
   max_grad_norm = 5
   num_layers = 2
-  num_steps = 10
+  num_steps = 5
   hidden_size = 200
   max_epoch = 4
   max_max_epoch = 13
   keep_prob = 1.0
   lr_decay = 0.5
   batch_size = 1
-  vocab_size = 10000
+  vocab_size = 222
   rnn_mode = BLOCK
 
 
@@ -426,13 +436,21 @@ def run_epoch(session, model, eval_op=None, verbose=False):
       feed_dict[c] = state[i].c
       feed_dict[h] = state[i].h
 
-    vals = session.run(fetches, feed_dict)
+    cost, state, probs = session.run([model.cost, model.final_state, model.probabilities], feed_dict)
     #with tf.Session() as sess:
     #   print(sess.run(model.output))
     #print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-    cost = vals["cost"]
-    state = vals["final_state"]
-    #print(state)
+    #cost = vals["cost"]
+    #state = vals["final_state"]
+    #probs = model.probabilities
+    print(reader.id_to_word(np.argmax(probs, 2)))
+    #words = tf.argmax(probs, 2)
+    #print(session.run(words))
+    #print(words)
+    #print(cost)
+    #with tf.Session() as sess:
+       #print(sess.run(words))
+    print("><><><><><><><><><><")
     costs += cost
     iters += model.input.num_steps
 
@@ -478,8 +496,8 @@ def main(_):
         % (len(gpus), FLAGS.num_gpus))
 
   raw_data = reader.ptb_raw_data(FLAGS.data_path)
-  train_data, valid_data, test_data, _ = raw_data
-
+  train_data, valid_data, test_data, vocabulary = raw_data
+  print(vocabulary)
   config = get_config()
   eval_config = get_config()
   eval_config.batch_size = 1
@@ -495,6 +513,7 @@ def main(_):
         m = PTBModel(is_training=True, config=config, input_=train_input)
       tf.summary.scalar("Training Loss", m.cost)
       tf.summary.scalar("Learning Rate", m.lr)
+      tf.summary.scalar("Training probs", m.probabilities)
 
     with tf.name_scope("Valid"):
       valid_input = PTBInput(config=config, data=valid_data, name="ValidInput")

@@ -34,6 +34,17 @@ def _read_words(filename):
     else:
       return f.read().decode("utf-8").replace("\n", "<eos>").split()
 
+def id_to_word(arr, filename='/Users/caozhongli/simple-examples/data/pptx.train.txt'):
+
+  data = _read_words(filename)
+
+  counter = collections.Counter(data)
+  count_pairs = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+
+  words, _ = list(zip(*count_pairs))
+
+  return [[words[i] for i in row] for row in arr]
+
 
 def _build_vocab(filename):
   data = _read_words(filename)
@@ -82,7 +93,6 @@ def ptb_raw_data(data_path=None):
   test_data = _file_to_word_ids(test_path, word_to_id)
   vocabulary = len(word_to_id)
   return train_data, valid_data, test_data, vocabulary
-
 
 def ptb_producer(raw_data, batch_size, num_steps, name=None):
   """Iterate on the raw PTB data.
