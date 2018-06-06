@@ -148,7 +148,8 @@ class PTBModel(object):
     logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
      # Reshape logits to be a 3-D tensor for sequence loss
     logits = tf.reshape(logits, [self.batch_size, self.num_steps, vocab_size])
-
+    self.probabilities = tf.nn.softmax(logits)
+    self.logits = logits
     # Use the contrib sequence loss and average over the batches
     # this is the loss. Do you remember why we need the loss? we need loss to calculate the gradient.
     loss = tf.contrib.seq2seq.sequence_loss(
@@ -416,6 +417,8 @@ def run_epoch(session, model, eval_op=None, verbose=False):
   fetches = {
       "cost": model.cost,
       "final_state": model.final_state,
+      "probs": model.probabilities,
+      "logits": model.logits
   }
   if eval_op is not None:
     fetches["eval_op"] = eval_op
@@ -432,7 +435,7 @@ def run_epoch(session, model, eval_op=None, verbose=False):
     #print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
     cost = vals["cost"]
     state = vals["final_state"]
-    #print(state)
+    print(vals["probs"])
     costs += cost
     iters += model.input.num_steps
 
