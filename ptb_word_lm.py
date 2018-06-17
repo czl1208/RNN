@@ -23,9 +23,9 @@ There are 3 supported model configurations:
 ===========================================
 | config | epochs | train | valid  | test
 ===========================================
-| small  | 13     | 37.99 | 121.39 | 115.91
+| small  | 13     | 35.99 | 121.39 | 115.91
 | medium | 39     | 48.45 |  86.16 |  82.07
-| large  | 55     | 37.87 |  82.62 |  78.29
+| large  | 55     | 35.87 |  82.62 |  78.29
 The exact results may vary depending on the random initialization.
 
 The hyperparameters used in the model:
@@ -105,9 +105,11 @@ class PTBInput(object):
   def __init__(self, config, data, name=None):
     self.batch_size = batch_size = config.batch_size
     self.num_steps = num_steps = config.num_steps
-    self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
+    #self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
+    self.epoch_size = 1
     self.input_data, self.targets = reader.ptb_producer(
         data, batch_size, num_steps, name=name)
+    print(self.input_data)
 
 '''
 This is for create the training modle
@@ -139,21 +141,25 @@ class PTBModel(object):
     output, state = self._build_rnn_graph(inputs, config, is_training) # build the rnn layers, output is the o, state is the s
 
     self._output = output
-    print(1)
+    print(output)
     print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
     # The following is to calculate the loss and use the loss to calculate the gradient and update the parameters
     softmax_w = tf.get_variable(
         "softmax_w", [size, vocab_size], dtype=data_type())
     softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=data_type())
+    print(softmax_w)
+    print(softmax_b)
+    print(output)
     logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
-     # Reshape logits to be a 3-D tensor for sequence loss
-    logits = tf.reshape(logits, [self.batch_size, self.num_steps, vocab_size])
+    print(logits)
+    # Reshape logits to be a 3-D tensor for sequence loss
+    logits = tf.reshape(logits, [35, 43, vocab_size])
     # Use the contrib sequence loss and average over the batches
     # this is the loss. Do you remember why we need the loss? we need loss to calculate the gradient.
     loss = tf.contrib.seq2seq.sequence_loss(
         logits,
         input_.targets,
-        tf.ones([self.batch_size, self.num_steps], dtype=data_type()),
+        tf.ones([35, 43], dtype=data_type()),
         average_across_timesteps=False,
         average_across_batch=True)
 
@@ -235,7 +241,7 @@ class PTBModel(object):
     cell = tf.contrib.rnn.MultiRNNCell(
         [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
-    self._initial_state = cell.zero_state(config.batch_size, data_type())
+    self._initial_state = cell.zero_state(35, data_type())
     state = self._initial_state
     # Simplified version of tf.nn.static_rnn().
     # This builds an unrolled LSTM for tutorial purposes only.
@@ -354,13 +360,13 @@ class SmallConfig(object):
   learning_rate = 1.0
   max_grad_norm = 5
   num_layers = 2
-  num_steps = 5
+  num_steps = 43
   hidden_size = 200
   max_epoch = 4
   max_max_epoch = 13
   keep_prob = 1.0
   lr_decay = 0.5
-  batch_size = 1
+  batch_size = 35
   vocab_size = 222
   rnn_mode = BLOCK
 
@@ -429,7 +435,6 @@ def run_epoch(session, model, eval_op=None, verbose=False):
   }
   if eval_op is not None:
     fetches["eval_op"] = eval_op
-
   for step in range(model.input.epoch_size):
     feed_dict = {}
     for i, (c, h) in enumerate(model.initial_state):
@@ -452,8 +457,9 @@ def run_epoch(session, model, eval_op=None, verbose=False):
        #print(sess.run(words))
     print("><><><><><><><><><><")
     costs += cost
-    iters += model.input.num_steps
-
+    iters += 43
+    print(iters)
+    print("####################")
     #if verbose and step % (model.input.epoch_size // 10) == 10:
     print("%.3f perplexity: %.3f speed: %.0f wps" %
             (step * 1.0 / model.input.epoch_size, np.exp(costs / iters),
@@ -497,11 +503,11 @@ def main(_):
 
   raw_data = reader.ptb_raw_data(FLAGS.data_path)
   train_data, valid_data, test_data, vocabulary = raw_data
-  print(vocabulary)
+  print(len(train_data))
   config = get_config()
   eval_config = get_config()
-  eval_config.batch_size = 1
-  eval_config.num_steps = 1
+  eval_config.batch_size = 35
+  eval_config.num_steps = 43
 
   with tf.Graph().as_default():
     initializer = tf.random_uniform_initializer(-config.init_scale,
@@ -509,6 +515,7 @@ def main(_):
 
     with tf.name_scope("Train"):
       train_input = PTBInput(config=config, data=train_data, name="TrainInput")
+      print(train_input)
       with tf.variable_scope("Model", reuse=None, initializer=initializer):
         m = PTBModel(is_training=True, config=config, input_=train_input)
       tf.summary.scalar("Training Loss", m.cost)
