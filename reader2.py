@@ -43,21 +43,10 @@ def _build_vocab(filename):
 
 def _file_to_word_ids(filename, word_to_id):
   data = []
-  color_id = 0
-  color_dict = {}
   with tf.gfile.GFile(filename, "r") as f:
     sentences = f.read().split("\n")
     for sentence in sentences:
-        words = sentence.split()
-        if(len(words) == 0):
-          continue
-        color = words[len(words) - 1]
-        if color not in color_dict:
-          color_dict[color] = color_id
-          color_id += 1
-        words.pop()
-        line = [word_to_id[word] + 1 for word in words if word in word_to_id]
-        line.append(color_dict[color])
+        line = [word_to_id[word] + 1 for word in sentence.split() if word in word_to_id]
         data.append(line)
   mx = 0;
   for line in data:
@@ -66,28 +55,26 @@ def _file_to_word_ids(filename, word_to_id):
   for line in data:
       num = line[len(line) - 1]
       line.pop(len(line) - 1)
-      line.pop(len(line) - 1)
       while len(line) < mx:
-          line.insert(0, 0)
+          line.extend([0])
       line.extend([num])
-  return data, color_dict
+  return data
 
 
 def read_raw_data():
 
   train_path = os.path.join("/Users/caozhongli/simple-examples/data/", "pptx.train.txt")
-  #train_path = os.path.join("", "processed_ppt.dat")
   #valid_path = os.path.join(data_path, "pptx.train.txt")
   #test_path = os.path.join(data_path, "pptx.train.txt")
 
   word_to_id = _build_vocab(train_path)
-  train_data, color_dict = _file_to_word_ids(train_path, word_to_id)
+  train_data = _file_to_word_ids(train_path, word_to_id)
   #valid_data, _ = _file_to_word_ids(valid_path, word_to_id)
   #test_data, _ = _file_to_word_ids(test_path, word_to_id)
   #vocabulary = len(word_to_id)
   train_data = np.asarray(train_data)
-  print(len(color_dict))
-  return train_data, len(word_to_id), color_dict
+  print(train_data)
+  return train_data, len(word_to_id)
 
 read_raw_data()
 
