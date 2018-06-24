@@ -17,7 +17,7 @@ def _read_words(filename):
     else:
       return f.read().decode("utf-8").replace("\n", " ").split()
 
-def id_to_word(arr):
+def id_to_word(arr): # need to be changed to the current path
   filename='/Users/caozhongli/simple-examples/data/pptx.train.txt'
   data = _read_words(filename)
 

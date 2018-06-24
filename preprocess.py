@@ -9,7 +9,7 @@ import numpy as np
 import re
 
 def removeSymbols(sentence):
-	sentence = re.sub(r'[^\w]', ' ', sentence)
+	sentence = re.sub(r'[^\w]', ' ', sentence) # \w is number or letter or _  ^\w all the chacaters without number and letter and _  r is represent is regx
 	sentence = sentence.replace("_", "")
 	sentence = ' '.join(sentence.split())
 	return sentence
