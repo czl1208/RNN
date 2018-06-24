@@ -51,7 +51,7 @@ losses = [tf.nn.sparse_softmax_cross_entropy_with_logits(None, labels, logits, N
 total_loss = tf.reduce_mean(losses)
 
 train_step = tf.train.AdagradOptimizer(0.3).minimize(total_loss)
-'''
+
 def plot(loss_list, predictions_series, batchX, batchY):
     plt.subplot(2, 3, 1)
     plt.cla()
@@ -71,7 +71,7 @@ def plot(loss_list, predictions_series, batchX, batchY):
 
     plt.draw()
     plt.pause(0.0001)
-'''
+
 saver = tf.train.Saver()
 
 with tf.Session() as sess:
@@ -111,7 +111,7 @@ with tf.Session() as sess:
 
             if batch_idx%1 == 0:
                 print("Step",batch_idx, "Loss", _total_loss)
-                #plot(loss_list, _predictions_series, batchX, batchY)
+                plot(loss_list, _predictions_series, batchX, batchY)
     save_path = saver.save(sess, "./savedmodel/model.ckpt")
     print("Model saved in path: %s" % save_path)
 
