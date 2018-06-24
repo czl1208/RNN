@@ -19,6 +19,7 @@ def _read_words(filename):
 
 def id_to_word(arr): # need to be changed to the current path
   filename='/Users/caozhongli/simple-examples/data/pptx.train.txt'
+  #filename='processed_ppt.dat'
   data = _read_words(filename)
 
   counter = collections.Counter(data)
@@ -64,7 +65,9 @@ def _file_to_word_ids(filename, word_to_id):
 def read_raw_data():
 
   train_path = os.path.join("/Users/caozhongli/simple-examples/data/", "pptx.train.txt")
+  #train_path = os.path.join("", "processed_ppt.dat")
   #valid_path = os.path.join(data_path, "pptx.train.txt")
+
   #test_path = os.path.join(data_path, "pptx.train.txt")
 
   word_to_id = _build_vocab(train_path)
